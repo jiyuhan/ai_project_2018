@@ -1,4 +1,5 @@
 {
+    "attr_list": ["buying", "buying", "doors", "persons", "lug_boot", "safety"],
     "attr": {
         "buying": ["v-high", "high", "med", "low"],
         "maint": ["v-high", "high", "med", "low"],
