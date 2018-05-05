@@ -5,7 +5,9 @@ open FSharp.Data
 
 [<Literal>]
 
-let DataSampleUrl = "http://archive.ics.uci.edu/ml/machine-learning-databases/car/car.data"
+let DataFilePath = "/Users/Huangzexian/Projects/parser/res/car.data.json"
+
+type CarData = JsonProvider<DataFilePath>
 
 
 
