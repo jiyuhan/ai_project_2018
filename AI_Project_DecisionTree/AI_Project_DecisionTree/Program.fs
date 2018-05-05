@@ -1,8 +1,11 @@
 ﻿// Learn more about F# at http://fsharp.org
 
 open System
+open FSharp.Data
 
-[<EntryPoint>]
-let main argv =
-    printfn "Hello World from F#!"
-    0 // return an integer exit code
+[<Literal>]
+
+let DataSampleUrl = "http://archive.ics.uci.edu/ml/machine-learning-databases/car/car.data"
+
+
+
