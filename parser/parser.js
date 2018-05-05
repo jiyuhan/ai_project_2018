@@ -7,9 +7,10 @@ var integrityCheck = function(data, names) {
     console.log('data length: ', data.length);
 
     for(i in data) {
-        for(key in names) {
-            if(!names[key].includes(data[i][key])) {
-                console.error('wrong');
+        for(key in names.attr) {
+            if(!(names.attr[key].includes(data[i][key]) 
+                        || names["class"].includes(data[i][key]))) {
+                console.error('wrong\n', data[i], '\n', key);
                 return;
             }
         }
