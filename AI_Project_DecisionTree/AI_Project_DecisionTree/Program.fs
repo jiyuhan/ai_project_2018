@@ -1,13 +1,23 @@
 ﻿// Learn more about F# at http://fsharp.org
 
-open System
+open System.IO
 open FSharp.Data
 
-[<Literal>]
+let path = "/Users/Huangzexian/Projects/parser/res/car.data.json"
 
-let DataFilePath = "/Users/Huangzexian/Projects/parser/res/car.data.json"
+let getData(filePath:string) = 
+            JsonValue.Load(filePath)
 
-type CarData = JsonProvider<DataFilePath>
+let carInfo = getData(path)
+
+[<EntryPoint>]
+
+let main argv =
+    let carInfo = getData(path)
+
+    printf "%A" carInfo
+    0
+
 
 
 
