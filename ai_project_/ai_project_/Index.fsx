@@ -10,9 +10,9 @@ open System.IO
 let namesPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.names.json"
 
 [<Literal>]
-// let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.json"
+let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.json"
 // this path is recommended while developing because it relieves the workload on debugger
-let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.short.json"
+// let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.short.json"
 (* ================================================================================= *)
 
 type NamesType = JsonProvider<namesPath>
@@ -97,15 +97,27 @@ type Datum =
             this.Attributes
             this.Decision
 
-let rec validAttribute stringToCheck (attributes: string list) : bool =
+let rec contains stringToCheck (attributes: string list) : bool =
     match attributes with
         | [] -> false
-        | h :: t -> if h.Equals stringToCheck then true else validAttribute stringToCheck t
+        | h :: t -> if h.Equals stringToCheck then true else contains stringToCheck t
 
-// let constructOneAttribute (attribute: string) (value: string) : Attribute = 
-    
+let rec containsFloat floatToCheck (float_list: float list) : bool =
+    match float_list with
+        | [] -> false
+        | h :: t -> if h = floatToCheck then true else containsFloat floatToCheck t
 
-// let rec constructAllAttributes (attributes:)
+let rec containsInt intToCheck (int_list: int list) : bool =
+    match int_list with
+        | [] -> false
+        | h :: t -> if h = intToCheck then true else containsInt intToCheck t
+
+let rec indexAt (stringToCheck: string) (attributes: string list) (countAt: int): int =
+    match attributes with
+        | [] -> -1
+        | h :: t -> if h.Equals stringToCheck then countAt else (indexAt stringToCheck t (countAt + 1))
+
+indexAt "5" ["1"; "2"; "3"; "4"; "5"] 0
 
 let rec assemblesAttributes (datum: JsonProvider<dataPath>.Root) (attributes: Attribute list): AttributeSimple list =
     match attributes with
@@ -129,10 +141,127 @@ let dataInDatumList = parseDataIntoDatumList (data |> Array.toList) namesInAttri
 
 type DecisionTreeNode =
     // attr * ( selected * nested node)
-    | DecisionNode of string * (string * DecisionTreeNode) seq
+    | DecisionNode of string * (string * DecisionTreeNode) list
     // decision * original piece of data
-    | Leaf         of string * Datum seq
+    | Leaf         of string * Datum list
 
+// attributes: string can be used for pattern matching, but we have no discriminator in our case
+/// Return the total true, total false, and total count for a set of Records
+let listToTuple l =
+    let l' = List.toArray l
+    let types = l' |> Array.map (fun o -> o.GetType())
+    let tupleType = Microsoft.FSharp.Reflection.FSharpType.MakeTupleType types
+    Microsoft.FSharp.Reflection.FSharpValue.MakeTuple (l' , tupleType)
+
+let variable_count (class_string: string list): int list = [ for i in 1 .. (class_.Length + 1) -> 0]
+let probability_list (class_string: string list): float list = [ for i in 1 .. (class_.Length + 1) -> 0.0]
+
+let rec incrementAtLocationHelper (int_list: int list) (at: int) (counter: int)=
+    match int_list with
+    | [] -> failwith "It should never reach here, just so you know"
+    | h :: t -> if counter = at then [(h + 1)] @ t else [h] @ (incrementAtLocationHelper t at (counter + 1))
+
+let incrementAtLocation (int_list: int list) (at: int) =
+    incrementAtLocationHelper int_list at 0
+
+let rec incrementAtMultipleLocation (int_list: int list) (at: int list) =
+    match at with
+    | [] -> int_list
+    | h :: t -> incrementAtMultipleLocation (incrementAtLocation int_list h) t
+
+incrementAtMultipleLocation [0;0;0;0;0] [1;3]
+
+let rec countClassifications (data: Datum list) (var_count: int list)= 
+    match data with
+    | [] -> var_count
+    | h :: t -> countClassifications t (incrementAtMultipleLocation var_count [(indexAt h.Decision.Info class_ 0); class_.Length])
+
+let entropyMathHelper (float_list: float list): float =
+    (List.fold
+        (fun listToBuild (item: float) ->
+            listToBuild @ [(-item * Math.Log(item, 2.0))])
+        [] float_list) |> List.sum
+
+countClassifications dataInDatumList (variable_count class_)
+
+let entropy (data: Datum list) : float = 
+    let data_stat: int list = countClassifications data (variable_count class_)
+    let totalCount: int = data_stat.Item class_.Length
+    let input_stat: int list = (List.chunkBySize class_.Length data_stat).Item 0
+    let rec normalizeListToFloatList (int_list: int list) (divider: int) : float list =
+        match int_list with
+        | [] -> []
+        | h :: t -> [(float h) / (float divider)] @ (normalizeListToFloatList t divider)
+    in
+    let prob_stat: float list = normalizeListToFloatList input_stat totalCount
+    printf "%A" prob_stat
+    // Log2(1.0) = infinity, short circuiting this part
+    if containsFloat 1.0 prob_stat then
+        0.0
+    else
+        entropyMathHelper prob_stat
+
+entropy dataInDatumList
+
+/// Given a set of data, how many bits do you save if you know the provided attribute.
+let informationGain (data : Datum list) attr =
+    
+    // Partition the data into new sets based on each unique value of the given attribute
+    // e.g. [ where Outlook = rainy ], [ where Outlook = overcast], [ ... ]
+    let divisionsByAttribute = 
+        data 
+        |> List.groupBy(fun item -> item.GetAttributeValue(attr))
+
+    let totalEntropy = entropy data
+    let entropyBasedOnSplit =
+        divisionsByAttribute
+        |> List.map(fun (attributeValue, rowsWithThatValue) -> 
+                        let ent = entropy rowsWithThatValue
+                        let percentageOfTotalRows = (float <| Seq.length rowsWithThatValue) / (float <| Seq.length data)
+                        -1.0 * percentageOfTotalRows * ent)
+        |> List.sum
+
+    totalEntropy + entropyBasedOnSplit
+    
+// ----------------------------------------------------------------------------
+
+/// Give a list of attributes left to branch on and training data,
+/// construct a decision tree node.
+let rec createTreeNode data attributesLeft =
+    
+    let data_stat: int list = countClassifications data (variable_count class_)
+
+    // If we have tested all attributes, then label this node with the 
+    // most often occuring instance; likewise if everything has the same value.
+    if List.length attributesLeft = 0 || containsInt 0 data_stat then
+        let mostOftenOccuring = 
+            if totalTrue > totalFalse then true
+            else false
+        Leaf(mostOftenOccuring, data)
+    
+    // Otherwise, create a proper decision tree node and branch accordingly
+    else
+        let attributeWithMostInformationGain =
+            attributesLeft 
+            |> List.map(fun attrName -> attrName, (informationGain data attrName))
+            |> List.maxBy(fun (attrName, infoGain) -> infoGain)
+            |> fst
+        
+        let remainingAttributes =
+            attributesLeft |> List.filter ((<>) attributeWithMostInformationGain)
+
+        // Partition that data base on the attribute's values
+        let partitionedData = 
+            Seq.groupBy
+                (fun (d : Datum) -> d.GetAttributeValue(attributeWithMostInformationGain))
+                data
+
+        // Create child nodes
+        let childNodes =
+            partitionedData
+            |> List.map (fun (attrValue, subData) -> attrValue, (createTreeNode subData remainingAttributes))
+
+        DecisionNode(attributeWithMostInformationGain, childNodes)
 [<EntryPoint>]
 let main argv =
     
