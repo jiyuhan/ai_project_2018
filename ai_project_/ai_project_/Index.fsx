@@ -188,15 +188,16 @@ let entropy (data: Datum list) : float =
     let data_stat: int list = countClassifications data (variable_count class_)
     let totalCount: int = data_stat.Item class_.Length
     let input_stat: int list = (List.chunkBySize class_.Length data_stat).Item 0
+    // printfn "%A" input_stat
     let rec normalizeListToFloatList (int_list: int list) (divider: int) : float list =
         match int_list with
         | [] -> []
         | h :: t -> [(float h) / (float divider)] @ (normalizeListToFloatList t divider)
     in
     let prob_stat: float list = normalizeListToFloatList input_stat totalCount
-    printf "%A" prob_stat
-    // Log2(1.0) = infinity, short circuiting this part
-    if containsFloat 1.0 prob_stat then
+    // printfn "%A" prob_stat
+    // Log2(0.0) = -infinity, short circuiting this part
+    if containsFloat 0.0 prob_stat then
         0.0
     else
         entropyMathHelper prob_stat
@@ -208,17 +209,34 @@ let informationGain (data : Datum list) attr =
         data 
         |> List.groupBy(fun item -> item.GetAttributeValue(attr))
 
-    let totalEntropy = entropy data
-    let entropyBasedOnSplit =
-        divisionsByAttribute
-        |> List.map(fun (attributeValue, rowsWithThatValue) -> 
-                        let ent = entropy rowsWithThatValue
-                        let percentageOfTotalRows = (float <| Seq.length rowsWithThatValue) / (float <| Seq.length data)
-                        -1.0 * percentageOfTotalRows * ent)
-        |> List.sum
+    // printfn "%d" divisionsByAttribute.Length
 
-    totalEntropy + entropyBasedOnSplit
+    let totalEntropy = entropy data
     
+        
+    let mapping = List.map (fun (attributeValue, rowsWithThatValue: Datum list) -> 
+                        // printfn "==============================="
+                        // printfn "%A" rowsWithThatValue
+                        // printfn "rows' length %d" rowsWithThatValue.Length
+                        // printfn "data's length %d" data.Length
+                        let local_entropy = entropy rowsWithThatValue
+                        // printfn "local entropy is: %f" local_entropy
+                        let percentageOfTotalRows = (float rowsWithThatValue.Length) / (float data.Length)
+                        // printfn "percentage of total rows: %f" percentageOfTotalRows
+                        -1.0 * percentageOfTotalRows * local_entropy) 
+                        divisionsByAttribute
+
+    // printfn "%A" mapping
+    let entropyBasedOnSplit = mapping |> List.sum
+    // printfn "%f" entropyBasedOnSplit
+    totalEntropy + entropyBasedOnSplit
+
+informationGain dataInDatumList "buying"
+informationGain dataInDatumList "maint"
+informationGain dataInDatumList "doors"
+informationGain dataInDatumList "persons"
+informationGain dataInDatumList "lug_boot"
+informationGain dataInDatumList "safety"
 // ----------------------------------------------------------------------------
 
 /// Give a list of attributes left to branch on and training data,
