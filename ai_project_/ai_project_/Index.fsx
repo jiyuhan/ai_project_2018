@@ -203,11 +203,7 @@ let entropy (data: Datum list) : float =
 
 entropy dataInDatumList
 
-/// Given a set of data, how many bits do you save if you know the provided attribute.
 let informationGain (data : Datum list) attr =
-    
-    // Partition the data into new sets based on each unique value of the given attribute
-    // e.g. [ where Outlook = rainy ], [ where Outlook = overcast], [ ... ]
     let divisionsByAttribute = 
         data 
         |> List.groupBy(fun item -> item.GetAttributeValue(attr))
