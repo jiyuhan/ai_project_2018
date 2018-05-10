@@ -247,7 +247,8 @@ let rec createTreeNode data attributesLeft =
 
     // If we have tested all attributes, then label this node with the 
     // most often occuring instance; likewise if everything has the same value.
-    if List.isEmpty attributesLeft || containsInt 0 dataStat then
+    if List.isEmpty attributesLeft then
+    // || containsInt 0 dataStat then
         let mostOftenOccuring: string = 
             let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
             class_.Item ((List.sort inputStat).Item (class_.Length - 1))
@@ -260,16 +261,16 @@ let rec createTreeNode data attributesLeft =
             |> List.map(fun attrName -> attrName, (informationGain data attrName))
             |> List.maxBy(fun (attrName, infoGain) -> infoGain)
             |> fst
-        
+        printfn "attribute with most ig: %s" attributeWithMostInformationGain
         let remainingAttributes =
             attributesLeft |> List.filter ((<>) attributeWithMostInformationGain)
-
+        printfn "remaining attributes are: %A" remainingAttributes
         // Partition that data base on the attribute's values
         let partitionedData = 
             List.groupBy
                 (fun (d : Datum) -> d.GetAttributeValue(attributeWithMostInformationGain))
                 data
-
+        printfn "remaining attributes are %A" partitionedData
         // Create child nodes
         let childNodes =
             partitionedData
@@ -278,7 +279,7 @@ let rec createTreeNode data attributesLeft =
         DecisionNode(attributeWithMostInformationGain, childNodes)
 
 createTreeNode dataInDatumList attributes
-    
+// attributes
 // [<EntryPoint>]
 // let main argv =
     
