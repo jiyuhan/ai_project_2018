@@ -182,7 +182,7 @@ countClassifications dataInDatumList (initialize_class_count_list class_)
 let entropyMathHelper (float_list: float list): float =
     (List.fold
         (fun listToBuild (item: float) ->
-            listToBuild @ [(-item * Math.Log(item, 2.0))])
+            listToBuild @ [ (if(item <> 0.0) then(-item * Math.Log(item, 2.0)) else 0.0)])
         [] float_list) |> List.sum
 let entropy (data: Datum list) : float = 
     let data_stat: int list = countClassifications data (initialize_class_count_list class_)
@@ -195,12 +195,12 @@ let entropy (data: Datum list) : float =
         | h :: t -> [(float h) / (float divider)] @ (normalizeListToFloatList t divider)
     in
     let probStat: float list = normalizeListToFloatList input_stat totalCount
-    // printfn "%A" prob_stat
+    // printfn "%A" probStat
     // Log2(0.0) = -infinity, short circuiting this part
-    if containsFloat 0.0 probStat then
-        0.0
-    else
-        entropyMathHelper probStat
+    // if containsFloat 0.0 probStat then
+    //     0.0
+    // else
+    entropyMathHelper probStat
 
 entropy dataInDatumList
 
