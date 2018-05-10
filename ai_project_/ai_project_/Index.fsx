@@ -261,16 +261,16 @@ let rec createTreeNode data attributesLeft =
             |> List.map(fun attrName -> attrName, (informationGain data attrName))
             |> List.maxBy(fun (attrName, infoGain) -> infoGain)
             |> fst
-        printfn "attribute with most ig: %s" attributeWithMostInformationGain
+        // printfn "attribute with most ig: %s" attributeWithMostInformationGain
         let remainingAttributes =
             attributesLeft |> List.filter ((<>) attributeWithMostInformationGain)
-        printfn "remaining attributes are: %A" remainingAttributes
+        // printfn "remaining attributes are: %A" remainingAttributes
         // Partition that data base on the attribute's values
         let partitionedData = 
             List.groupBy
                 (fun (d : Datum) -> d.GetAttributeValue(attributeWithMostInformationGain))
                 data
-        printfn "remaining attributes are %A" partitionedData
+        // printfn "remaining attributes are %A" partitionedData
         // Create child nodes
         let childNodes =
             partitionedData
@@ -278,7 +278,13 @@ let rec createTreeNode data attributesLeft =
 
         DecisionNode(attributeWithMostInformationGain, childNodes)
 
-createTreeNode dataInDatumList attributes
+let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
+    "TODO"
+
+let myDecisionTree = createTreeNode dataInDatumList attributes
+// let namesString = File.ReadAllText(NamesPath)
+let myDecisionTreeString = Printf.sprintf "%A" myDecisionTree
+File.AppendAllText(BASE_PATH + "/result.json", myDecisionTreeString)
 // attributes
 // [<EntryPoint>]
 // let main argv =
