@@ -1,28 +1,32 @@
-#r "C:/Users/Thomas/Documents/Visual Studio 2017/Projects/DecisionTree/packages/FSharp.Data.2.4.6/lib/net45/FSharp.Data.dll"
+﻿// #r "C:/Users/Thomas/Documents/Visual Studio 2017/Projects/DecisionTree/packages/FSharp.Data.2.4.6/lib/net45/FSharp.Data.dll"
+#r "../packages/FSharp.Data.2.4.6/lib/net45/FSharp.Data.dll"
 open System
 open FSharp.Data
 open FSharp.Data.JsonExtensions
 open System.IO
 
 (* ================================================================================= *)
-
 [<Literal>]
-let namesPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.names.json"
-
+let BASE_PATH = "/Users/thomas/Desktop/ai_project_2018/ai_project_/ai_project_"
 [<Literal>]
-let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.json"
+// let namesPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.names.json"
+let NamesPath = BASE_PATH + "/car.names.json"
+[<Literal>]
+let DataPath = BASE_PATH + "/car.data.json"
+// let DataPath = BASE_PATH + "/data.short.json"
+// let DataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.json"
 // this path is recommended while developing because it relieves the workload on debugger
 // let dataPath = "C:\Users\Thomas\Documents\Visual Studio 2017\Projects\DecisionTree\DecisionTree\car.data.short.json"
 (* ================================================================================= *)
 
-type NamesType = JsonProvider<namesPath>
+type NamesType = JsonProvider<NamesPath>
 let parseToNamesObj stringObj= NamesType.Parse(stringObj)
 
-type DataType = JsonProvider<dataPath>
+type DataType = JsonProvider<DataPath>
 let parseToDataObj (stringObj:string) = DataType.Parse(stringObj)
 
-let namesString = File.ReadAllText(namesPath)
-let dataString = File.ReadAllText(dataPath)
+let namesString = File.ReadAllText(NamesPath)
+let dataString = File.ReadAllText(DataPath)
 
 let names = parseToNamesObj namesString
 let data = parseToDataObj dataString
@@ -119,16 +123,16 @@ let rec indexAt (stringToCheck: string) (attributes: string list) (countAt: int)
 
 indexAt "5" ["1"; "2"; "3"; "4"; "5"] 0
 
-let rec assemblesAttributes (datum: JsonProvider<dataPath>.Root) (attributes: Attribute list): AttributeSimple list =
+let rec assemblesAttributes (datum: JsonProvider<DataPath>.Root) (attributes: Attribute list): AttributeSimple list =
     match attributes with
     | [] -> []
     // get the specific attribute for this piece of data
     | h :: t -> [{Name = h.Name; Info = JsonExtensions.Item(datum.JsonValue, h.Name).AsString()}] @ (assemblesAttributes datum t)
 
-let rec parseDatumInToDatumTypeHelper (datum: JsonProvider<dataPath>.Root) (attributes: Attribute list): Datum =
+let rec parseDatumInToDatumTypeHelper (datum: JsonProvider<DataPath>.Root) (attributes: Attribute list): Datum =
     {Attributes = (assemblesAttributes datum attributes)  ; Decision = { Name = "class"; Info = JsonExtensions.Item(datum.JsonValue, "class").AsString()}}
 
-let rec parseDataIntoDatumList (data: JsonProvider<dataPath>.Root list) (attributes: Attribute list): Datum list =
+let rec parseDataIntoDatumList (data: JsonProvider<DataPath>.Root list) (attributes: Attribute list): Datum list =
     match data with
     | [] -> []
     | h :: t -> [(parseDatumInToDatumTypeHelper h attributes)] @ parseDataIntoDatumList t attributes
@@ -153,39 +157,35 @@ let listToTuple l =
     let tupleType = Microsoft.FSharp.Reflection.FSharpType.MakeTupleType types
     Microsoft.FSharp.Reflection.FSharpValue.MakeTuple (l' , tupleType)
 
-let variable_count (class_string: string list): int list = [ for i in 1 .. (class_.Length + 1) -> 0]
+let initialize_class_count_list (class_string: string list): int list = [ for i in 1 .. (class_.Length + 1) -> 0]
 let probability_list (class_string: string list): float list = [ for i in 1 .. (class_.Length + 1) -> 0.0]
 
 let rec incrementAtLocationHelper (int_list: int list) (at: int) (counter: int)=
     match int_list with
-    | [] -> failwith "It should never reach here, just so you know"
+    | [] -> []
     | h :: t -> if counter = at then [(h + 1)] @ t else [h] @ (incrementAtLocationHelper t at (counter + 1))
-
+class_
 let incrementAtLocation (int_list: int list) (at: int) =
     incrementAtLocationHelper int_list at 0
 
+// this increments multiple variables in the list
 let rec incrementAtMultipleLocation (int_list: int list) (at: int list) =
     match at with
     | [] -> int_list
     | h :: t -> incrementAtMultipleLocation (incrementAtLocation int_list h) t
-
-incrementAtMultipleLocation [0;0;0;0;0] [1;3]
-
+initialize_class_count_list class_
 let rec countClassifications (data: Datum list) (var_count: int list)= 
     match data with
     | [] -> var_count
     | h :: t -> countClassifications t (incrementAtMultipleLocation var_count [(indexAt h.Decision.Info class_ 0); class_.Length])
-
+countClassifications dataInDatumList (initialize_class_count_list class_)
 let entropyMathHelper (float_list: float list): float =
     (List.fold
         (fun listToBuild (item: float) ->
-            listToBuild @ [(-item * Math.Log(item, 2.0))])
+            listToBuild @ [ (if(item <> 0.0) then(-item * Math.Log(item, 2.0)) else 0.0)])
         [] float_list) |> List.sum
-
-countClassifications dataInDatumList (variable_count class_)
-
 let entropy (data: Datum list) : float = 
-    let data_stat: int list = countClassifications data (variable_count class_)
+    let data_stat: int list = countClassifications data (initialize_class_count_list class_)
     let totalCount: int = data_stat.Item class_.Length
     let input_stat: int list = (List.chunkBySize class_.Length data_stat).Item 0
     // printfn "%A" input_stat
@@ -194,13 +194,13 @@ let entropy (data: Datum list) : float =
         | [] -> []
         | h :: t -> [(float h) / (float divider)] @ (normalizeListToFloatList t divider)
     in
-    let prob_stat: float list = normalizeListToFloatList input_stat totalCount
-    // printfn "%A" prob_stat
+    let probStat: float list = normalizeListToFloatList input_stat totalCount
+    // printfn "%A" probStat
     // Log2(0.0) = -infinity, short circuiting this part
-    if containsFloat 0.0 prob_stat then
-        0.0
-    else
-        entropyMathHelper prob_stat
+    // if containsFloat 0.0 probStat then
+    //     0.0
+    // else
+    entropyMathHelper probStat
 
 entropy dataInDatumList
 
@@ -243,14 +243,15 @@ informationGain dataInDatumList "safety"
 /// construct a decision tree node.
 let rec createTreeNode data attributesLeft =
     
-    let data_stat: int list = countClassifications data (variable_count class_)
+    let dataStat: int list = countClassifications data (initialize_class_count_list class_)
 
     // If we have tested all attributes, then label this node with the 
     // most often occuring instance; likewise if everything has the same value.
-    if List.length attributesLeft = 0 || containsInt 0 data_stat then
-        let mostOftenOccuring = 
-            if totalTrue > totalFalse then true
-            else false
+    if List.isEmpty attributesLeft then
+    // || containsInt 0 dataStat then
+        let mostOftenOccuring: string = 
+            let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
+            class_.Item ((List.sort inputStat).Item (class_.Length - 1))
         Leaf(mostOftenOccuring, data)
     
     // Otherwise, create a proper decision tree node and branch accordingly
@@ -260,23 +261,32 @@ let rec createTreeNode data attributesLeft =
             |> List.map(fun attrName -> attrName, (informationGain data attrName))
             |> List.maxBy(fun (attrName, infoGain) -> infoGain)
             |> fst
-        
+        // printfn "attribute with most ig: %s" attributeWithMostInformationGain
         let remainingAttributes =
             attributesLeft |> List.filter ((<>) attributeWithMostInformationGain)
-
+        // printfn "remaining attributes are: %A" remainingAttributes
         // Partition that data base on the attribute's values
         let partitionedData = 
-            Seq.groupBy
+            List.groupBy
                 (fun (d : Datum) -> d.GetAttributeValue(attributeWithMostInformationGain))
                 data
-
+        // printfn "remaining attributes are %A" partitionedData
         // Create child nodes
         let childNodes =
             partitionedData
             |> List.map (fun (attrValue, subData) -> attrValue, (createTreeNode subData remainingAttributes))
 
         DecisionNode(attributeWithMostInformationGain, childNodes)
-[<EntryPoint>]
-let main argv =
+
+let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
+    "TODO"
+
+let myDecisionTree = createTreeNode dataInDatumList attributes
+// let namesString = File.ReadAllText(NamesPath)
+let myDecisionTreeString = Printf.sprintf "%A" myDecisionTree
+File.AppendAllText(BASE_PATH + "/result.json", myDecisionTreeString)
+// attributes
+// [<EntryPoint>]
+// let main argv =
     
-    0
+//     0
