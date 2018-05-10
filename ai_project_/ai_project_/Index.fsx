@@ -243,14 +243,14 @@ informationGain dataInDatumList "safety"
 /// construct a decision tree node.
 let rec createTreeNode data attributesLeft =
     
-    let data_stat: int list = countClassifications data (variable_count class_)
+    let dataStat: int list = countClassifications data (initialize_class_count_list class_)
 
     // If we have tested all attributes, then label this node with the 
     // most often occuring instance; likewise if everything has the same value.
-    if List.isEmpty attributesLeft || containsInt 0 data_stat then
+    if List.isEmpty attributesLeft || containsInt 0 dataStat then
         let mostOftenOccuring: string = 
-            if (totalTrue > totalFalse) then true
-            else false
+            let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
+            class_.Item ((List.sort inputStat).Item (class_.Length - 1))
         Leaf(mostOftenOccuring, data)
     
     // Otherwise, create a proper decision tree node and branch accordingly
@@ -266,7 +266,7 @@ let rec createTreeNode data attributesLeft =
 
         // Partition that data base on the attribute's values
         let partitionedData = 
-            Seq.groupBy
+            List.groupBy
                 (fun (d : Datum) -> d.GetAttributeValue(attributeWithMostInformationGain))
                 data
 
@@ -276,7 +276,10 @@ let rec createTreeNode data attributesLeft =
             |> List.map (fun (attrValue, subData) -> attrValue, (createTreeNode subData remainingAttributes))
 
         DecisionNode(attributeWithMostInformationGain, childNodes)
-[<EntryPoint>]
-let main argv =
+
+createTreeNode dataInDatumList attributes
     
-    0
+// [<EntryPoint>]
+// let main argv =
+    
+//     0
