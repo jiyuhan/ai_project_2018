@@ -1,9 +1,12 @@
 ﻿// #r "C:/Users/Thomas/Documents/Visual Studio 2017/Projects/DecisionTree/packages/FSharp.Data.2.4.6/lib/net45/FSharp.Data.dll"
 #r "../packages/FSharp.Data.2.4.6/lib/net45/FSharp.Data.dll"
+open FSharp.Data.Runtime.StructuralInference
+#r "../packages/MathNet.Numerics.4.4.1/lib/net40/MathNet.Numerics.dll"
 open System
 open FSharp.Data
 open FSharp.Data.JsonExtensions
 open System.IO
+open MathNet.Numerics.Distributions
 
 (* ================================================================================= *)
 [<Literal>]
@@ -224,19 +227,25 @@ let informationGain (data : Datum list) attr =
 
 // ----------------------------------------------------------------------------
 
+
+
 /// Give a list of attributes left to branch on and training data,
 /// construct a decision tree node.
-let rec createTreeNode data attributesLeft =
+let rec DTL data attributesLeft (pruning : bool) =
     
     let dataStat: int list = countClassifications data (initialize_class_count_list class_)
-
+    let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
     // If we have tested all attributes, then label this node with the 
     // most often occuring instance; likewise if everything has the same value.
-    if List.isEmpty attributesLeft then
+    if List.isEmpty attributesLeft || (List.filter (fun (i, somethingelse) -> (i = 0)) ((List.groupBy (fun (i: int) -> i) inputStat))).Length = 3 then
     // || containsInt 0 dataStat then
         let mostOftenOccuring: string = 
-            let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
             class_.Item ((List.sort inputStat).Item (class_.Length - 1))
+
+        // calculate s, p, n here
+        // calculate chi-square using s, p, n
+        // then doing post-pruning here
+        //TODO:
         Leaf(mostOftenOccuring)
     
     // Otherwise, create a proper decision tree node and branch accordingly
@@ -259,12 +268,9 @@ let rec createTreeNode data attributesLeft =
         // Create child nodes
         let childNodes =
             partitionedData
-            |> List.map (fun (attrValue, subData) -> attrValue, (createTreeNode subData remainingAttributes))
+            |> List.map (fun (attrValue, subData) -> attrValue, (DTL subData remainingAttributes pruning))
 
         DecisionNode(attributeWithMostInformationGain, childNodes)
-
-// let rec decisionTreeListToStringHelper (listToUnfold : (string * DecisionTreeNode list)) : string
-// let rec somethingToStringHelper (yeaaa: string * DecisionTreeNode)
 
 let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
     let rec somethingToStringHelper (toParse: (string * DecisionTreeNode) list) : string = 
@@ -277,21 +283,6 @@ let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
     | DecisionNode (s, node)  -> "{\"" + s + "\": [" + (somethingToStringHelper node) + "]}"
     // | DecisionNode (t1,t2)-> decisionTreeToString(t2)
     | Leaf l -> "\"" + l + "\""
-
-// let rec decisionTreeToString (decisionTree: string * DecisionTreeNode list): string =
-//     match decisionTree with
-//     | DecisionNode (s1, (s2, treeNode) :: t ) -> "{\"" + s1 + "\":[{\"" + s2 + "\":" + decisionTreeToString treeNode + "\"}]"
-//     | DecisionNode (t1,t2)-> decisionTreeToString(t2)
-//     | Leaf (l1,l2) -> l1
-    // // attr * ( selected * nested node)
-    // | DecisionNode of feature : string * (selected : string * DecisionTreeNode) list
-    // // decision * original piece of data
-    // | Leaf         of string * Datum list
-
-// let myDecisionTree = createTreeNode dataInDatumList attributes
-// let namesString = File.ReadAllText(NamesPath)
-// let myDecisionTreeString = Printf.sprintf "%A" myDecisionTree
-// File.AppendAllText(BASE_PATH + "/result.json", (decisionTreeToString myDecisionTree))
 
 // --------------
 // second part of Part I
@@ -336,7 +327,7 @@ let (trainData, testData) = splitDataset (whole_data_list)(0.7)
 let train = trainData |> Array.toList
 
 
-let myTrainDecisionTree = createTreeNode train whole_attributes
+let myTrainDecisionTree = DTL train whole_attributes false
 
 
 // let myTrainDecisionTreeString = Printf.sprintf "%s" myTrainDecisionTree
@@ -344,19 +335,65 @@ File.AppendAllText(BASE_PATH + "/train_result.json", (decisionTreeToString myTra
 
 let test = testData |> Array.toList
 
-let myTestDecisionTree = createTreeNode test whole_attributes
+let myTestDecisionTree = DTL test whole_attributes false
 
-// let myTestDecisionTreeString = Printf.sprintf "%A" myTestDecisionTree
+ // let myTestDecisionTreeString = Printf.sprintf "%A" myTestDecisionTree
 File.AppendAllText(BASE_PATH + "/test_result.json", (decisionTreeToString myTestDecisionTree))
  
-printf "the test and train is finished"
+let toPredict (toPredict: Datum) (decisionTree: DecisionTreeNode): bool =
+    let attributesLeft = toPredict.Attributes
+    let rec pickFeatures (attr: AttributeSimple list) (feature: string): AttributeSimple list =
+        match attr with
+        | [] -> failwith "not found"
+        | [h] -> if h.Name.Equals feature then [] else failwith "not found"
+        | h :: t -> if h.Name.Equals feature then t else [h] @ (pickFeatures t feature)
 
-// let chiSquared = ChiSquared(1.0)
-// printf "%A" chiSquared
+    let rec pickSelection (attr: AttributeSimple list) (feature: string): string =
+        match attr with
+        | [] -> failwith "not found"
+        | [h] -> if h.Name.Equals feature then h.Info else failwith "not found"
+        | h :: t -> if h.Name.Equals feature then h.Info else pickSelection t feature
+
+    let rec getSelectedDecision (selection: string) (decisionList: (string * DecisionTreeNode) list): DecisionTreeNode =
+        match decisionList with
+        | [] -> failwith "didn't find selected feature"
+        | [(s, node)] -> if (s.Equals selection) then node else failwith "didn't find selected feature"
+        | (s, node) :: t -> if s.Equals selection then node else (getSelectedDecision selection t)
+    in
+    // this iterates through DecisionTreeNode to find the right feature
+    let rec predictHelper (attributesLeft: AttributeSimple list) (decisionTreeLeft: DecisionTreeNode): DecisionTreeNode =
+        match (decisionTreeLeft) with
+        | (Leaf(x)) -> Leaf(x)
+        | (DecisionNode(x, y)) -> (predictHelper (pickFeatures attributesLeft x) (getSelectedDecision (pickSelection attributesLeft x) y))
+    in
+    let leafUnpack (decisionTree: DecisionTreeNode): string =
+        match (decisionTree) with
+        | Leaf(x) -> x
+        | (_) -> failwith "not a leaf??"
+    in
+    // check equality 
+    (toPredict.Decision.Info = leafUnpack (predictHelper attributesLeft decisionTree))
+
+let rec getAccuracy (record: int * int) (datumList: Datum list) (decisionTree: DecisionTreeNode): int * int =
+    match (datumList, record) with
+    | ([], r) -> r
+    | ([h], (c, total)) -> if toPredict h decisionTree then (c + 1, total + 1) else (c, total + 1)
+    | (h :: t, (c, total)) -> if toPredict h decisionTree then getAccuracy (c + 1, total + 1) t decisionTree else getAccuracy (c, total + 1) t decisionTree
+
+printf "testing accuracy %A" (getAccuracy (0, 0) test myTestDecisionTree)
+printf "training accuracy %A" (getAccuracy (0, 0) train myTrainDecisionTree)
+
+(* == part II == *)
+let rec getDepth (tree: DecisionTreeNode) : int =
+    let rec getLengthsInList (toParse: (string * DecisionTreeNode) list) (current_list: int list) : (int list) = 
+        match toParse with
+        | [] -> [0]
+        | [(s, treeNode)] -> current_list @ [getDepth treeNode]
+        | (s, treeNode) :: t ->  current_list @ [getDepth treeNode] @ (getLengthsInList t current_list)
+    in
+    match tree with
+    | DecisionNode (s, node)  -> 1 + (List.maxBy (fun (i) -> i) (getLengthsInList node []))
+    // | DecisionNode (t1,t2)-> decisionTreeToString(t2)
+    | Leaf _ -> 1
 
 
-// attributes
-// [<EntryPoint>]
-// let main argv =
-    
-//     0

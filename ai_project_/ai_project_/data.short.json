@@ -1,0 +1,38 @@
+[
+  {
+    "buying": "v-high",
+    "maint": "v-high",
+    "doors": "2",
+    "persons": "2",
+    "lug_boot": "small",
+    "safety": "low",
+    "class": "unacc"
+  },
+  {
+    "buying": "v-high",
+    "maint": "v-high",
+    "doors": "2",
+    "persons": "2",
+    "lug_boot": "small",
+    "safety": "med",
+    "class": "acc"
+  },
+  {
+    "buying": "v-high",
+    "maint": "v-high",
+    "doors": "2",
+    "persons": "2",
+    "lug_boot": "small",
+    "safety": "high",
+    "class": "good"
+  },
+  {
+    "buying": "v-high",
+    "maint": "v-high",
+    "doors": "2",
+    "persons": "2",
+    "lug_boot": "med",
+    "safety": "low",
+    "class": "v-good"
+  }
+]
