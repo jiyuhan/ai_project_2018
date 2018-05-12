@@ -120,9 +120,6 @@ let rec indexAt (stringToCheck: string) (attributes: string list) (countAt: int)
     match attributes with
         | [] -> -1
         | h :: t -> if h.Equals stringToCheck then countAt else (indexAt stringToCheck t (countAt + 1))
-
-indexAt "5" ["1"; "2"; "3"; "4"; "5"] 0
-
 let rec assemblesAttributes (datum: JsonProvider<DataPath>.Root) (attributes: Attribute list): AttributeSimple list =
     match attributes with
     | [] -> []
@@ -147,7 +144,7 @@ type DecisionTreeNode =
     // attr * ( selected * nested node)
     | DecisionNode of string * (string * DecisionTreeNode) list
     // decision * original piece of data
-    | Leaf         of string * Datum list
+    | Leaf         of string
 
 // attributes: string can be used for pattern matching, but we have no discriminator in our case
 /// Return the total true, total false, and total count for a set of Records
@@ -164,7 +161,6 @@ let rec incrementAtLocationHelper (int_list: int list) (at: int) (counter: int)=
     match int_list with
     | [] -> []
     | h :: t -> if counter = at then [(h + 1)] @ t else [h] @ (incrementAtLocationHelper t at (counter + 1))
-class_
 let incrementAtLocation (int_list: int list) (at: int) =
     incrementAtLocationHelper int_list at 0
 
@@ -173,12 +169,10 @@ let rec incrementAtMultipleLocation (int_list: int list) (at: int list) =
     match at with
     | [] -> int_list
     | h :: t -> incrementAtMultipleLocation (incrementAtLocation int_list h) t
-initialize_class_count_list class_
 let rec countClassifications (data: Datum list) (var_count: int list)= 
     match data with
     | [] -> var_count
     | h :: t -> countClassifications t (incrementAtMultipleLocation var_count [(indexAt h.Decision.Info class_ 0); class_.Length])
-countClassifications dataInDatumList (initialize_class_count_list class_)
 let entropyMathHelper (float_list: float list): float =
     (List.fold
         (fun listToBuild (item: float) ->
@@ -201,9 +195,6 @@ let entropy (data: Datum list) : float =
     //     0.0
     // else
     entropyMathHelper probStat
-
-entropy dataInDatumList
-
 let informationGain (data : Datum list) attr =
     let divisionsByAttribute = 
         data 
@@ -231,12 +222,6 @@ let informationGain (data : Datum list) attr =
     // printfn "%f" entropyBasedOnSplit
     totalEntropy + entropyBasedOnSplit
 
-informationGain dataInDatumList "buying"
-informationGain dataInDatumList "maint"
-informationGain dataInDatumList "doors"
-informationGain dataInDatumList "persons"
-informationGain dataInDatumList "lug_boot"
-informationGain dataInDatumList "safety"
 // ----------------------------------------------------------------------------
 
 /// Give a list of attributes left to branch on and training data,
@@ -252,7 +237,7 @@ let rec createTreeNode data attributesLeft =
         let mostOftenOccuring: string = 
             let inputStat: int list = (List.chunkBySize class_.Length dataStat).Item 0
             class_.Item ((List.sort inputStat).Item (class_.Length - 1))
-        Leaf(mostOftenOccuring, data)
+        Leaf(mostOftenOccuring)
     
     // Otherwise, create a proper decision tree node and branch accordingly
     else
@@ -278,13 +263,98 @@ let rec createTreeNode data attributesLeft =
 
         DecisionNode(attributeWithMostInformationGain, childNodes)
 
-let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
-    "TODO"
+// let rec decisionTreeListToStringHelper (listToUnfold : (string * DecisionTreeNode list)) : string
+// let rec somethingToStringHelper (yeaaa: string * DecisionTreeNode)
 
-let myDecisionTree = createTreeNode dataInDatumList attributes
+let rec decisionTreeToString (decisionTree: DecisionTreeNode): string =
+    let rec somethingToStringHelper (toParse: (string * DecisionTreeNode) list) : string = 
+        match toParse with
+        | [] -> ""
+        | [(s, treeNode)] -> "{\"" + s + "\":" + decisionTreeToString treeNode + "}"
+        | (s, treeNode) :: t -> "{\"" + s + "\":" + decisionTreeToString treeNode + "}," + (somethingToStringHelper t)
+    in
+    match decisionTree with
+    | DecisionNode (s, node)  -> "{\"" + s + "\": [" + (somethingToStringHelper node) + "]}"
+    // | DecisionNode (t1,t2)-> decisionTreeToString(t2)
+    | Leaf l -> "\"" + l + "\""
+
+// let rec decisionTreeToString (decisionTree: string * DecisionTreeNode list): string =
+//     match decisionTree with
+//     | DecisionNode (s1, (s2, treeNode) :: t ) -> "{\"" + s1 + "\":[{\"" + s2 + "\":" + decisionTreeToString treeNode + "\"}]"
+//     | DecisionNode (t1,t2)-> decisionTreeToString(t2)
+//     | Leaf (l1,l2) -> l1
+    // // attr * ( selected * nested node)
+    // | DecisionNode of feature : string * (selected : string * DecisionTreeNode) list
+    // // decision * original piece of data
+    // | Leaf         of string * Datum list
+
+// let myDecisionTree = createTreeNode dataInDatumList attributes
 // let namesString = File.ReadAllText(NamesPath)
-let myDecisionTreeString = Printf.sprintf "%A" myDecisionTree
-File.AppendAllText(BASE_PATH + "/result.json", myDecisionTreeString)
+// let myDecisionTreeString = Printf.sprintf "%A" myDecisionTree
+// File.AppendAllText(BASE_PATH + "/result.json", (decisionTreeToString myDecisionTree))
+
+// --------------
+// second part of Part I
+
+let rand = new Random()
+
+let whole_names = parseToNamesObj namesString
+let whole_data = parseToDataObj dataString
+
+let whole_attributes = whole_names.AttrList |> Array.toList
+let whole_names_attributes = namesObj whole_attributes
+let whole_data_list = parseDataIntoDatumList (whole_data |> Array.toList) whole_names_attributes
+
+let shuffle (a:'a[]) =
+    let swapByIndex i j =
+        let tmp = a.[i]
+        a.[i] <- a.[j]
+        a.[j] <- tmp
+    
+    let maxIndex = Array.length a - 1
+    [|0..maxIndex|] 
+    |> Array.iter (fun i -> swapByIndex i (rand.Next maxIndex))
+    a
+
+let buildTrainTestIndexes (length:int) (trainPercent:float) :(int[] * int[]) = 
+    let splitIndex = int(Math.Floor(trainPercent * float(length-1)))
+    let indexes = [|0..length - 1|]
+    shuffle indexes |> ignore
+    (indexes.[0..splitIndex],  // training indexes
+     indexes.[splitIndex+1..])  // testing indexes
+
+
+// Split a dataset into a trainingset and a testing set (with no overlap)
+let splitDataset (d:Datum list) (trainPercent:float) =
+    let (trainIndexes, testIndexes) = buildTrainTestIndexes (List.length d) trainPercent
+    (trainIndexes |> Array.map (fun i -> List.item i d),  // training set
+     testIndexes  |> Array.map (fun i -> List.item i d))  // testing set
+
+buildTrainTestIndexes(whole_data_list.Length)(0.7)
+let (trainData, testData) = splitDataset (whole_data_list)(0.7)
+
+let train = trainData |> Array.toList
+
+
+let myTrainDecisionTree = createTreeNode train whole_attributes
+
+
+// let myTrainDecisionTreeString = Printf.sprintf "%s" myTrainDecisionTree
+File.AppendAllText(BASE_PATH + "/train_result.json", (decisionTreeToString myTrainDecisionTree))
+
+let test = testData |> Array.toList
+
+let myTestDecisionTree = createTreeNode test whole_attributes
+
+// let myTestDecisionTreeString = Printf.sprintf "%A" myTestDecisionTree
+File.AppendAllText(BASE_PATH + "/test_result.json", (decisionTreeToString myTestDecisionTree))
+ 
+printf "the test and train is finished"
+
+// let chiSquared = ChiSquared(1.0)
+// printf "%A" chiSquared
+
+
 // attributes
 // [<EntryPoint>]
 // let main argv =
